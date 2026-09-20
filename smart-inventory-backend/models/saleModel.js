@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const stockMovementModel = require("./stockMovementModel");
+const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
 
 // Get the latest sequence number for SALE-001 formatting
 const getNextSaleSequence = async () => {
@@ -122,16 +123,66 @@ const createSaleTransaction = async ({
 };
 
 // Fetch sales list
-const getAllSales = async () => {
-  const [rows] = await db.query(
-    `SELECT 
-       s.*,
-       u.name AS createdByName
-     FROM sales s
-     LEFT JOIN users u ON s.createdById = u.id
-     ORDER BY s.id DESC`
-  );
-  return rows;
+// const getAllSales = async () => {
+//   const [rows] = await db.query(
+//     `SELECT 
+//        s.*,
+//        u.name AS createdByName
+//      FROM sales s
+//      LEFT JOIN users u ON s.createdById = u.id
+//      ORDER BY s.id DESC`
+//   );
+//   return rows;
+// };
+
+const getSalesPaginated = async (query = {}) => {
+  const { page, limit, offset } = getPaginationParams(query);
+  const { status, search, startDate, endDate } = query;
+
+  let whereClauses = [];
+  let params = [];
+
+  if (status) {
+    whereClauses.push("s.status = ?");
+    params.push(status);
+  }
+
+  if (search && search.trim()) {
+    whereClauses.push("(s.saleNumber LIKE ? OR s.customerName LIKE ? OR s.customerPhone LIKE ?)");
+    const term = `%${search.trim()}%`;
+    params.push(term, term, term);
+  }
+
+  if (startDate && endDate) {
+    whereClauses.push("s.createdAt BETWEEN ? AND ?");
+    params.push(startDate, endDate);
+  }
+
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+  // 1. Total count
+  const countSql = `SELECT COUNT(*) AS total FROM sales s ${whereSql}`;
+  const [countRows] = await db.query(countSql, params);
+  const totalItems = countRows[0].total;
+
+  // 2. Fetch page records
+  const dataSql = `
+    SELECT 
+      s.*,
+      u.name AS createdByName
+    FROM sales s
+    LEFT JOIN users u ON s.createdById = u.id
+    ${whereSql}
+    ORDER BY s.id DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  const [items] = await db.query(dataSql, [...params, limit, offset]);
+
+  return {
+    items,
+    pagination: buildPaginationMeta(totalItems, page, limit),
+  };
 };
 
 // Fetch single sale with line items
@@ -240,7 +291,7 @@ const cancelSaleTransaction = async (saleId, userId) => {
 module.exports = {
   getNextSaleSequence,
   createSaleTransaction,
-  getAllSales,
+  getSalesPaginated,
   getSaleById,
   cancelSaleTransaction,
 };

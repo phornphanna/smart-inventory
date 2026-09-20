@@ -78,11 +78,13 @@ const createPurchaseOrder = async (req, res, next) => {
 // GET /api/purchase-orders
 const getPurchaseOrders = async (req, res, next) => {
   try {
-    const pos = await purchaseOrderModel.getAllPurchaseOrders();
+    const result = await purchaseOrderModel.getPurchaseOrdersPaginated(req.query);
+
     res.status(200).json({
       success: true,
-      message: "Purchase Orders retrieved successfully",
-      data: pos,
+      message: "Purchase orders retrieved successfully",
+      data: result.items,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);
@@ -173,8 +175,8 @@ const cancelPurchaseOrder = async (req, res, next) => {
 
 module.exports = {
   createPurchaseOrder,
-  getPurchaseOrders,
   getPurchaseOrder,
   receiveStock,
   cancelPurchaseOrder,
+  getPurchaseOrders
 };

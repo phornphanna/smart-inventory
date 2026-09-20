@@ -12,4 +12,5 @@ router.get(
   requireAuth,
   paymentController.downloadReceiptPdf
 );
+
 module.exports = router;

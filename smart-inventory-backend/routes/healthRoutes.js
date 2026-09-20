@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../config/db');
 const { executeDailySweep } = require("../jobs/dailySweep");
 const { sendTelegramMessage } = require("../utils/telegram");
-
+const { runLowStockSweep } = require("../jobs/dailySweep");
 // Manual trigger for testing telegram connection
 router.post("/test-telegram", async (req, res, next) => {
   try {
@@ -56,10 +56,14 @@ router.post("/test-telegram", async (req, res, next) => {
 });
 
 // Manual trigger for testing daily sweep
-router.post("/test-daily-sweep", async (req, res, next) => {
+router.get("/test-sweep", async (req, res, next) => {
   try {
-    await executeDailySweep();
-    res.status(200).json({ success: true, message: "Daily sweep triggered manually" });
+    const result = await runLowStockSweep();
+    res.status(200).json({
+      success: true,
+      message: "Sweep executed immediately.",
+      data: result,
+    });
   } catch (error) {
     next(error);
   }

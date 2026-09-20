@@ -40,11 +40,13 @@ const createSale = async (req, res, next) => {
 // GET /api/sales
 const getSales = async (req, res, next) => {
   try {
-    const sales = await saleModel.getAllSales();
+    const result = await saleModel.getSalesPaginated(req.query);
+
     res.status(200).json({
       success: true,
-      message: "Sales retrieved successfully",
-      data: sales,
+      message: "Sales list retrieved successfully",
+      data: result.items,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);

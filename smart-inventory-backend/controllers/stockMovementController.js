@@ -1,29 +1,23 @@
 const stockMovementModel = require("../models/stockMovementModel");
 const productModel = require("../models/productModel");
-
+const { sendTelegramMessage } = require("../utils/telegram");
+const { stockAdjustmentTemplate } = require("../utils/telegramTemplates");
+const userModel = require("../models/userModel");
 // GET /api/stock/movements
 const getMovements = async (req, res, next) => {
   try {
-    const { productId, type, startDate, endDate } = req.query;
-
-    const movements = await stockMovementModel.getAllMovements({
-      productId,
-      type,
-      startDate,
-      endDate,
-    });
+    const result = await stockMovementModel.getStockMovementsPaginated(req.query);
 
     res.status(200).json({
       success: true,
-      message: "Stock movement ledger retrieved successfully",
-      count: movements.length,
-      data: movements,
+      message: "Stock movements retrieved successfully",
+      data: result.items,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);
   }
 };
-
 // GET /api/stock/movements/:productId
 const getMovementsByProduct = async (req, res, next) => {
   try {
@@ -56,6 +50,7 @@ const getMovementsByProduct = async (req, res, next) => {
   }
 };
 
+// POST /api/stock/adjust
 const adjustStock = async (req, res, next) => {
   try {
     const { productId, newStock, reason } = req.body;
@@ -71,7 +66,7 @@ const adjustStock = async (req, res, next) => {
     if (!reason || !reason.trim()) {
       return res.status(400).json({
         success: false,
-        message: "An adjustment reason is mandatory (e.g. 'Damaged goods', 'Monthly physical count')",
+        message: "An adjustment reason is mandatory",
       });
     }
 
@@ -81,6 +76,18 @@ const adjustStock = async (req, res, next) => {
       reason: reason.trim(),
       userId,
     });
+
+    const actor = await userModel.findById(userId);
+
+    // result now contains { ... reason: "Your reason text", sku: "..." }
+    const telegramMessage = stockAdjustmentTemplate(
+      result,
+      actor ? actor.name : "Admin/Manager"
+    );
+
+    sendTelegramMessage(telegramMessage).catch((err) =>
+      console.error("Telegram adjustment notification failed:", err.message)
+    );
 
     res.status(200).json({
       success: true,

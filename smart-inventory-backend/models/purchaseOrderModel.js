@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const stockMovementModel = require("./stockMovementModel");
+const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
 
 // Get the latest sequence number for PO-001 formatting
 const getNextPoSequence = async () => {
@@ -45,20 +46,6 @@ const createPurchaseOrderWithItems = async ({ poNumber, supplierId, createdById,
   }
 };
 
-// Fetch PO list with supplier and creator details
-const getAllPurchaseOrders = async () => {
-  const [rows] = await db.query(
-    `SELECT 
-       po.*,
-       s.name AS supplierName,
-       u.name AS createdByName
-     FROM purchase_orders po
-     LEFT JOIN suppliers s ON po.supplierId = s.id
-     LEFT JOIN users u ON po.createdById = u.id
-     ORDER BY po.id DESC`
-  );
-  return rows;
-};
 
 // Fetch single PO with all nested line items
 const getPurchaseOrderById = async (id) => {
@@ -206,11 +193,58 @@ const cancelPurchaseOrder = async (id) => {
   return result.affectedRows > 0;
 };
 
+
+const getPurchaseOrdersPaginated = async (query = {}) => {
+  const { page, limit, offset } = getPaginationParams(query);
+  const { status, supplierId } = query;
+
+  let whereClauses = [];
+  let params = [];
+
+  if (status) {
+    whereClauses.push("po.status = ?");
+    params.push(status);
+  }
+
+  if (supplierId) {
+    whereClauses.push("po.supplierId = ?");
+    params.push(Number(supplierId));
+  }
+
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+  // 1. Total count
+  const countSql = `SELECT COUNT(*) AS total FROM purchase_orders po ${whereSql}`;
+  const [countRows] = await db.query(countSql, params);
+  const totalItems = countRows[0].total;
+
+  // 2. Fetch page records
+  const dataSql = `
+    SELECT 
+      po.*,
+      s.name AS supplierName,
+      u.name AS createdByName
+    FROM purchase_orders po
+    LEFT JOIN suppliers s ON po.supplierId = s.id
+    LEFT JOIN users u ON po.createdById = u.id
+    ${whereSql}
+    ORDER BY po.id DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  const [items] = await db.query(dataSql, [...params, limit, offset]);
+
+  return {
+    items,
+    pagination: buildPaginationMeta(totalItems, page, limit),
+  };
+};
+
 module.exports = {
   getNextPoSequence,
   createPurchaseOrderWithItems,
-  getAllPurchaseOrders,
   getPurchaseOrderById,
   receiveStockTransaction,
   cancelPurchaseOrder,
+  getPurchaseOrdersPaginated
 };

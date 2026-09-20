@@ -1,54 +1,81 @@
 const cron = require("node-cron");
-const analysisModel = require("../models/analysisModel");
-const { computeMetrics } = require("../controllers/analysisController");
+const db = require("../config/db");
 const { sendTelegramMessage } = require("../utils/telegram");
+const { lowStockAlertTemplate } = require("../utils/telegramTemplates");
 
-// Routine that checks inventory health and generates report
-const executeDailySweep = async () => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] Starting daily inventory sweep...`);
+const runLowStockSweep = async () => {
+  console.log("--> Starting inventory sweep for low stock...");
 
   try {
-    const rawData = await analysisModel.getInventoryVelocityData(30);
-    const analyzed = rawData.map((item) => computeMetrics(item, 30));
+    const [products] = await db.query(`
+      SELECT 
+        p.id, 
+        p.name, 
+        p.sku, 
+        p.currentStock, 
+        p.safetyStock,
+        COALESCE(s.leadTimeDays, 3) AS leadTimeDays
+      FROM products p
+      LEFT JOIN suppliers s ON p.supplierId = s.id
+      WHERE p.isActive = 1
+    `);
 
-    // Filter items that breached Reorder Point (currentStock <= ROP)
-    const reorderList = analyzed.filter((item) => item.needsReorder);
+    const lowStockItems = [];
 
-    console.log(
-      `[Sweep Complete] Analyzed: ${analyzed.length} items. Needing reorder: ${reorderList.length} items.`
-    );
+    for (const product of products) {
+      const [salesData] = await db.query(
+        `SELECT COALESCE(SUM(si.quantity), 0) AS totalSold
+         FROM sale_items si
+         JOIN sales s ON si.saleId = s.id
+         WHERE si.productId = ?
+           AND s.status = 'COMPLETED'
+           AND s.createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+        [product.id]
+      );
 
-    if (reorderList.length > 0) {
-      let message = `⚠️ *DAILY INVENTORY REORDER SWEEP*\n`;
-      message += `📅 Date: ${new Date().toLocaleDateString()}\n`;
-      message += `🚨 *${reorderList.length}* product(s) require replenishment:\n\n`;
+      const totalSold = Number(salesData[0]?.totalSold || 0);
+      const ads = parseFloat((totalSold / 30).toFixed(2));
+      const reorderPoint = Math.ceil(ads * product.leadTimeDays + product.safetyStock);
 
-      reorderList.forEach((p, idx) => {
-        message += `*${idx + 1}. ${p.productName}* (${p.sku})\n`;
-        message += `   • Current Stock: *${p.currentStock}*\n`;
-        message += `   • Reorder Point (ROP): ${p.reorderPoint}\n`;
-        message += `   • Stock Runway: ${p.srd} days\n`;
-        message += `   • Suggested Order (ROQ): *${p.recommendedRoq} units*\n\n`;
-      });
-
-      message += `_Please review and issue Purchase Orders accordingly._`;
-
-      await sendTelegramMessage(message);
-    } else {
-      console.log("All stock levels healthy. No Telegram alert necessary.");
+      if (product.currentStock <= product.safetyStock || product.currentStock <= reorderPoint) {
+        lowStockItems.push({
+          name: product.name,
+          sku: product.sku,
+          currentStock: product.currentStock,
+          safetyStock: product.safetyStock,
+          reorderPoint,
+          ads,
+        });
+      }
     }
+
+    if (lowStockItems.length === 0) {
+      console.log("All products have sufficient stock. No notification needed.");
+      return { triggered: false, count: 0 };
+    }
+
+    // Generate bilingual template
+    const formattedMsg = lowStockAlertTemplate(lowStockItems);
+
+    // Send Telegram alert
+    await sendTelegramMessage(formattedMsg);
+    console.log("Bilingual low stock Telegram alert delivered.");
+
+    return { triggered: true, count: lowStockItems.length, items: lowStockItems };
   } catch (error) {
-    console.error("Daily inventory sweep execution failed:", error);
+    console.error("Error executing daily inventory sweep:", error);
+    throw error;
   }
 };
 
-// Schedule job to run at 08:00 AM every day
-// Cron format: Minute (0) Hour (8) Day (*) Month (*) DayOfWeek (*)
-cron.schedule("0 8 * * *", () => {
-  executeDailySweep();
-});
+// Daily cron schedule at 08:00 AM Phnom Penh time
+cron.schedule(
+  "0 8 * * *",
+  async () => {
+    console.log("Executing scheduled 08:00 AM Daily Sweep...");
+    await runLowStockSweep();
+  },
+  { timezone: "Asia/Phnom_Penh" }
+);
 
-module.exports = {
-  executeDailySweep,
-};
+module.exports = { runLowStockSweep };

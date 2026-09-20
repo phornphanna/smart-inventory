@@ -4,7 +4,7 @@ const receiptModel = require("../models/receiptModel");
 const { sendTelegramMessage } = require("../utils/telegram");
 const productModel = require("../models/productModel");
 const { generatePdfReceiptStream } = require("../utils/pdfReceipt");
-
+const { saleCompletedTemplate } = require("../utils/telegramTemplates");
 
 // Helper to inspect remaining inventory and alert if low
 const triggerPostPaymentStockAlerts = async (saleId) => {
@@ -175,7 +175,15 @@ const confirmPayment = async (req, res, next) => {
       userId,
     });
 
-    const receipt = await receiptModel.getReceiptData(payment.saleId);
+
+    const receipt = await receiptModel.getReceiptData(saleId);
+    const telegramMsg = saleCompletedTemplate(
+      receipt,
+      receipt.items,
+      receipt.payment,
+      receipt.cashier
+    );
+    sendTelegramMessage(telegramMsg).catch(console.error);
 
     res.status(200).json({
       success: true,
@@ -258,6 +266,7 @@ const downloadReceiptPdf = async (req, res, next) => {
     next(error);
   }
 };
+
 
 module.exports = {
   processPayment,
