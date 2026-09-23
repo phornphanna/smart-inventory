@@ -4,6 +4,8 @@
       <RouterView />
     </SidebarProvider>
   </ThemeProvider>
+
+     <Notifications />
 </template>
 
 <script setup lang="ts">

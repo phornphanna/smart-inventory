@@ -151,7 +151,7 @@
 
 
 <script setup lang="ts">
-import { computed } from 'vue'
+// import { computed } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import * as yup from 'yup'
 import { useRouter } from 'vue-router'
@@ -209,9 +209,11 @@ const {
 const onSubmit = handleSubmit(async (values) => {
   try {
     const result = await authStore.forgotPassword(values.email)
+    
     if (!result.success) {
       toast.error(result.message)
     } else {
+       sessionStorage.setItem('forgotEmail', values.email);
       toast.success('Verification code sent to your email.')
       router.push('/verify-otp')
     }

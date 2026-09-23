@@ -255,17 +255,21 @@ const onSubmit = handleSubmit(async (values) => {
       values.password,
       keepLoggedIn.value
     )
-
-    
+  
 
     if (authStore.token) {
-         toast.success('Login successful!')
+         toast.success('Login successful!' ,{
+            timeout: 2000 ,
+            pauseOnHover: false,
+         })
       router.push('/')
     }
   } catch (error) {
      toast.error(
       authStore.error || 'Invalid email or password',{
         id: 'login-error',
+         timeout: 2000,
+         pauseOnHover: false,
       }
       
     )

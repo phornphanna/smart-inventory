@@ -314,29 +314,31 @@ const canVerify = computed(() => {
 
 const onSubmit = handleSubmit(async (values) => {
   try {
-    const email = authStore.resetEmail
+     const email = sessionStorage.getItem('forgotEmail')
 
     if (!email) {
       toast.error(
         'Email information is missing.'
       )
-
       router.push('/forgot-password')
       return
     }
 
-    await authStore.verifyOtp(
-      email,
+ const result =    await authStore.verifyOtp(  email,
       values.otp
     )
-
-    toast.success(
+     console.log(result);
+    if(!result.success){
+        toast.error(result.message)
+    } else {
+       sessionStorage.setItem('forgotEmail', result.data.email);
+       sessionStorage.setItem('otpVerified' , values.otp);
+      toast.success(
       'OTP verified successfully.'
     )
-
-    // OTP verification is NOT login.
-    // Go to new password page.
     router.push('/new-password')
+    }
+   
 
   } catch {
     toast.error(

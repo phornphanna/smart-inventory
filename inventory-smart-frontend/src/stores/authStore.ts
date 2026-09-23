@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import api from '@/services/api'
+import NewPassword from '@/views/Auth/NewPassword.vue'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -9,6 +10,7 @@ export const useAuthStore = defineStore('auth', {
     error: null as string | null,
     resetToken: null as string | null,
     resetEmail: null as string | null,
+    resetOtp: null as string | null,
   }),
 
   actions: {
@@ -63,7 +65,8 @@ export const useAuthStore = defineStore('auth', {
           otp,
         })
 
-        this.resetToken = response.data.data.resetToken
+        // this.resetToken = response.data.data.resetToken
+
 
         return response.data
       } catch (error: any) {
@@ -85,19 +88,19 @@ export const useAuthStore = defineStore('auth', {
         const response = await api.post('/auth/forgot-password', {
           email,
         })
-      
+
         // return console.log(response)
 
-        if(response.data.success){
-         this.resetEmail = email
-         this.loading = false 
-        return response.data
+        if (response.data.success) {
+          this.resetEmail = email
+          this.loading = false
+          return response.data
         } else {
-          this.loading = false 
-            return   response.data;
+          this.loading = false
+          return response.data;
         }
 
-      
+
       } catch (error: any) {
         this.error =
           error.response?.data?.message ||
@@ -107,6 +110,34 @@ export const useAuthStore = defineStore('auth', {
         this.loading = false
       }
     },
+
+    async newPassword(
+      email: string,
+      otp: string,
+      newPassword: string
+    ) {
+      this.loading = true
+      this.error = null
+
+      try {
+        const response = await api.post('/auth/reset-password', {
+          email,
+          otp,
+          newPassword,
+        })
+
+        return response.data
+      } catch (error: any) {
+        this.error =
+          error.response?.data?.message ||
+          'Failed to reset password'
+
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
     logout() {
       this.user = null
       this.token = null

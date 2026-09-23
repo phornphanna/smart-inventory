@@ -128,31 +128,32 @@ const router = createRouter({
     },
 
     {
-      path: '/:pathMatch(.*)*',
-      name: 'NotFound',
-      component: () => import('../views/Errors/FourZeroFour.vue'),
+      path: '/verify-otp',
+      name: 'VerifyOtp',
+      component: () => import('../views/Auth/VerifyOtp.vue'),
       meta: {
-        title: '404 Not Found',
+        title: 'Verify OTP',
+      requiresGuest: true,
       },
     },
 
-    // {
-    //   path: '/verify-otp',
-    //   name: 'VerifyOtp',
-    //   component: () => import('@/views/Auth/VerifyOtp.vue'),
-    //   meta: {
-    //     title: 'Verify OTP',
-    //     requiresReset: true,
-    //   },
-    // },
+    {
+      path: '/new-password',
+      name: 'NewPassword',
+      component: () => import('../views/Auth/NewPassword.vue'),
+      meta: {
+        title: 'New Password',
+         requiresGuest: true,
+      },
+    },
 
     {
       path: '/forgot-password',
-      name: 'VerifyOtp',
-      component: () => import('@/views/Auth/ForgotPassword.vue'),
+      name: 'ForgotPassword',
+      component: () => import('../views/Auth/ForgotPassword.vue'),
       meta: {
         title: 'Forgot Password',
-         requiresGuest: true,
+        requiresGuest: true,
       },
     },
 
@@ -165,13 +166,13 @@ const router = createRouter({
         requiresGuest: true,
       },
     },
+
     {
-      path: '/signup',
-      name: 'Signup',
-      component: () => import('../views/Auth/Signup.vue'),
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: () => import('../views/Errors/FourZeroFour.vue'),
       meta: {
-        title: 'Signup',
-        requiresGuest: true,
+        title: '404 Not Found',
       },
     },
   ],
@@ -180,16 +181,25 @@ const router = createRouter({
 router.beforeEach((to) => {
   const token = localStorage.getItem('token') || sessionStorage.getItem('token')
 
-  const resetToken = sessionStorage.getItem('resetToken')
+  // const forgotEmail = sessionStorage.getItem('forgotEmail')
+  // const otpVerified = sessionStorage.getItem('otpVerified')
 
+  // Normal protected pages
   if (to.meta.requiresAuth && !token) {
     return { name: 'Signin' }
   }
 
-  if (to.meta.requiresReset && !resetToken) {
-    return { name: 'Signin' }
-  }
+  // // Forgot password / OTP flow
+  // if (to.meta.requiresOtp && !forgotEmail) {
+  //   return { name: 'ForgotPassword' }
+  // }
 
+  // // New password only after OTP verification
+  // if (to.meta.requiresOtpVerified && otpVerified !== 'true') {
+  //   return { name: 'VerifyOtp' }
+  // }
+
+  // Don't allow logged-in user to open guest pages
   if (to.meta.requiresGuest && token) {
     return { name: 'Ecommerce' }
   }

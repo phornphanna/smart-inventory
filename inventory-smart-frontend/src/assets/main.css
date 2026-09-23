@@ -1413,3 +1413,10 @@ pre code,
   object-position:top;
   display: block;
 }
+
+
+/* // declare toaste  */
+
+.Vue-Toastification__container {
+  z-index: 999999 !important;
+}
